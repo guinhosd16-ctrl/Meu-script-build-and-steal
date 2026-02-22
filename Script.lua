@@ -1,16 +1,12 @@
--- CONFIGURAÇÕES
-local SPEED = 100 -- Velocidade segura para não dar kick (0-150)
-local HEIGHT = 100 -- Sobe para o céu para evitar paredes
-
+-- BUILD AND STEAL - PHYSICAL VELOCITY BYPASS (2026)
 local LP = game.Players.LocalPlayer
-local TS = game:GetService("TweenService")
-local RS = game:GetService("RunService")
+local Root = LP.Character:WaitForChild("HumanoidRootPart")
 local Remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvent")
 
 _G.StealActive = true
 
--- 1. NOCLIP AUTOMÁTICO (Para não bugar em paredes)
-RS.Stepped:Connect(function()
+-- NOCLIP AUTOMÁTICO (ESSENCIAL)
+game:GetService("RunService").Stepped:Connect(function()
     if _G.StealActive and LP.Character then
         for _, v in pairs(LP.Character:GetDescendants()) do
             if v:IsA("BasePart") then v.CanCollide = false end
@@ -18,40 +14,41 @@ RS.Stepped:Connect(function()
     end
 end)
 
--- 2. FUNÇÃO DE MOVIMENTO SUAVE (O Segredo para não voltar atrás)
-local function tweenTo(targetCF)
-    local hrp = LP.Character:WaitForChild("HumanoidRootPart")
-    local distance = (hrp.Position - targetCF.Position).Magnitude
-    local info = TweenInfo.new(distance / SPEED, Enum.EasingStyle.Linear)
+-- FUNÇÃO DE MOVIMENTO POR FORÇA (Engana o Anticheat de TP)
+local function physicalMove(targetPos)
+    local distance = (Root.Position - targetPos.Position).Magnitude
     
-    local tween = TS:Create(hrp, info, {CFrame = targetCF})
-    tween:Play()
-    tween.Completed:Wait()
+    -- Cria um impulso físico (mais seguro que mudar o CFrame)
+    local bv = Instance.new("BodyVelocity", Root)
+    bv.Velocity = (targetPos.Position - Root.Position).Unit * 80 -- Velocidade "humana"
+    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+
+    -- Espera chegar perto do item
+    repeat task.wait() until (Root.Position - targetPos.Position).Magnitude < 6
+    bv:Destroy()
 end
 
--- 3. LOGICA DE ROUBO PRECISO
 local function steal(item)
     if not item:IsA("Model") then return end
-    local targetPos = item:GetPivot()
-
-    -- Voo por cima (Sky-Walk) para evitar detecção
-    tweenTo(CFrame.new(targetPos.X, HEIGHT, targetPos.Z))
+    
+    -- Sobe um pouco para não bater no chão
+    Root.CFrame = Root.CFrame * CFrame.new(0, 5, 0)
     task.wait(0.1)
-    LP.Character.HumanoidRootPart.CFrame = targetPos * CFrame.new(0, 3, 0)
-    
-    task.wait(0.6) -- Tempo para o Delta processar a posição real
 
-    -- Dispara o Roubo (ID 16777216)
-    Remote:FireServer("grabpet", 16777216, item, LP.Character.HumanoidRootPart.CFrame)
+    -- Move-se fisicamente até ao item
+    physicalMove(item:GetPivot())
+    task.wait(0.5)
+
+    -- Comando de Roubo (ID 16777216)
+    Remote:FireServer("grabpet", 16777216, item, Root.CFrame)
     
-    -- Bypass de ProximityPrompt
+    -- Força interação física (Bypass Delta)
     local p = item:FindFirstChildWhichIsA("ProximityPrompt", true)
     if p then fireproximityprompt(p) end
     
     task.wait(1.5)
 end
 
--- 4. LOOP DE VARREDURA
 task.spawn(function()
     while _G.StealActive do
         local plots = workspace:FindFirstChild("Plots")
