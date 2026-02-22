@@ -1,12 +1,15 @@
--- BUILD AND STEAL - UNIVERSAL TWEEN BYPASS (FEV 2026)
+-- CONFIGURAÇÕES
+local SPEED = 100 -- Velocidade segura para não dar kick (0-150)
+local HEIGHT = 100 -- Sobe para o céu para evitar paredes
+
 local LP = game.Players.LocalPlayer
-local RS = game:GetService("RunService")
 local TS = game:GetService("TweenService")
+local RS = game:GetService("RunService")
 local Remote = game:GetService("ReplicatedStorage"):WaitForChild("RemoteEvent")
 
 _G.StealActive = true
 
--- 1. NOCLIP TOTAL (Para não bugar em paredes/tectos)
+-- 1. NOCLIP AUTOMÁTICO (Para não bugar em paredes)
 RS.Stepped:Connect(function()
     if _G.StealActive and LP.Character then
         for _, v in pairs(LP.Character:GetDescendants()) do
@@ -15,41 +18,40 @@ RS.Stepped:Connect(function()
     end
 end)
 
--- 2. FUNÇÃO DE MOVIMENTO SEGURO (Impede o "Back-TP")
-local function safeMove(targetCF)
+-- 2. FUNÇÃO DE MOVIMENTO SUAVE (O Segredo para não voltar atrás)
+local function tweenTo(targetCF)
     local hrp = LP.Character:WaitForChild("HumanoidRootPart")
     local distance = (hrp.Position - targetCF.Position).Magnitude
-    local speed = 120 -- Velocidade que o servidor de 2026 aceita sem dar kick
+    local info = TweenInfo.new(distance / SPEED, Enum.EasingStyle.Linear)
     
-    local info = TweenInfo.new(distance / speed, Enum.EasingStyle.Linear)
     local tween = TS:Create(hrp, info, {CFrame = targetCF})
     tween:Play()
     tween.Completed:Wait()
 end
 
--- 3. LOGICA DE ROUBO
+-- 3. LOGICA DE ROUBO PRECISO
 local function steal(item)
     if not item:IsA("Model") then return end
-    
-    -- Vai por cima (Sky-walk) para evitar detecção de altura
     local targetPos = item:GetPivot()
-    safeMove(CFrame.new(targetPos.X, 120, targetPos.Z)) 
+
+    -- Voo por cima (Sky-Walk) para evitar detecção
+    tweenTo(CFrame.new(targetPos.X, HEIGHT, targetPos.Z))
     task.wait(0.1)
     LP.Character.HumanoidRootPart.CFrame = targetPos * CFrame.new(0, 3, 0)
     
-    task.wait(0.5) -- Delay para o Delta processar a posição
+    task.wait(0.6) -- Tempo para o Delta processar a posição real
 
-    -- Dispara o Remote (ID 16777216 que confirmaste)
+    -- Dispara o Roubo (ID 16777216)
     Remote:FireServer("grabpet", 16777216, item, LP.Character.HumanoidRootPart.CFrame)
     
-    -- Bypass de ProximityPrompt (Caso o Remote falhe)
+    -- Bypass de ProximityPrompt
     local p = item:FindFirstChildWhichIsA("ProximityPrompt", true)
     if p then fireproximityprompt(p) end
     
-    task.wait(1.2)
+    task.wait(1.5)
 end
 
--- 4. LOOP DE VARREDURA DO MAPA
+-- 4. LOOP DE VARREDURA
 task.spawn(function()
     while _G.StealActive do
         local plots = workspace:FindFirstChild("Plots")
@@ -69,5 +71,3 @@ task.spawn(function()
         task.wait(5)
     end
 end)
-
-print("SCRIPT CARREGADO COM SUCESSO DO GITHUB!")
